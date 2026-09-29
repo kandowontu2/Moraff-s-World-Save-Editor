@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Moraff's World Save Editor</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #1a1a2e; color: #e0e0e0; min-height: 100vh; }
+  .header { background: #16213e; padding: 20px 30px; border-bottom: 2px solid #0f3460; }
+  .header h1 { font-size: 24px; color: #e94560; }
+  .header p { color: #888; font-size: 13px; margin-top: 4px; }
+  .toolbar { padding: 15px 30px; background: #16213e; border-bottom: 1px solid #0f3460; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; position: sticky; top: 0; z-index: 10; }
+  .btn { padding: 8px 18px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s; }
+  .btn-primary { background: #e94560; color: white; }
+  .btn-primary:hover { background: #c23152; }
+  .btn-secondary { background: #0f3460; color: #e0e0e0; }
+  .btn-secondary:hover { background: #1a4a7a; }
+  .btn-success { background: #1b8a4e; color: white; }
+  .btn-success:hover { background: #157a42; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .status { margin-left: auto; font-size: 13px; color: #888; }
+  .main { padding: 20px 30px; display: none; }
+  .main.visible { display: block; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 20px; }
+  .card { background: #16213e; border: 1px solid #0f3460; border-radius: 10px; overflow: hidden; }
+  .card-header { padding: 12px 16px; background: #0f3460; font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .card-header .icon { font-size: 18px; }
+  .card-body { padding: 16px; }
+  .field { display: flex; align-items: center; padding: 6px 0; border-bottom: 1px solid #1a1a2e; }
+  .field:last-child { border-bottom: none; }
+  .field-label { flex: 1; font-size: 13px; color: #aaa; }
+  .field-label .offset { color: #555; font-family: monospace; font-size: 11px; margin-left: 4px; }
+  .field-value { display: flex; align-items: center; gap: 6px; }
+  input[type="number"], input[type="text"], select {
+    background: #1a1a2e; border: 1px solid #0f3460; color: #e0e0e0; padding: 5px 10px;
+    border-radius: 4px; font-size: 14px; font-family: monospace; width: 140px; text-align: right;
+  }
+  input[type="text"] { text-align: left; width: 200px; }
+  select { width: 160px; text-align: left; font-family: 'Segoe UI', sans-serif; }
+  input:focus, select:focus { outline: none; border-color: #e94560; }
+  .hex-view { font-family: monospace; font-size: 12px; background: #0d1117; padding: 12px; border-radius: 6px; line-height: 1.6; overflow-x: auto; max-height: 300px; overflow-y: auto; margin-top: 10px; }
+  .hex-view .changed { color: #e94560; font-weight: bold; }
+  .hex-view .offset-col { color: #555; }
+  .hex-view .ascii { color: #4a9; }
+  .drop-zone { border: 2px dashed #0f3460; border-radius: 12px; padding: 60px 30px; text-align: center; margin: 40px 30px; cursor: pointer; transition: all 0.2s; }
+  .drop-zone:hover, .drop-zone.dragover { border-color: #e94560; background: rgba(233,69,96,0.05); }
+  .drop-zone h2 { color: #e94560; margin-bottom: 8px; }
+  .drop-zone p { color: #666; font-size: 14px; }
+  .warning { background: rgba(233, 69, 96, 0.1); border: 1px solid rgba(233,69,96,0.3); border-radius: 6px; padding: 10px 14px; margin: 10px 0; font-size: 13px; color: #e94560; }
+  .spell-grid-card { grid-column: 1 / -1; }
+  .spell-grid-tabs { display: flex; gap: 2px; margin-bottom: 12px; }
+  .spell-grid-tab { padding: 6px 14px; background: #1a1a2e; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 13px; color: #888; }
+  .spell-grid-tab.active { background: #0f3460; color: #e0e0e0; }
+  .spell-grid-container { display: none; }
+  .spell-grid-container.active { display: block; }
+  .spell-type-row { margin-bottom: 8px; }
+  .spell-type-label { font-size: 13px; font-weight: 600; color: #e94560; margin-bottom: 4px; }
+  .spell-row { display: flex; flex-wrap: wrap; gap: 2px; }
+  .spell-cell { width: 28px; height: 28px; border: 1px solid #0f3460; border-radius: 3px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; font-family: monospace; transition: all 0.15s; user-select: none; }
+  .spell-cell.off { background: #1a1a2e; color: #555; }
+  .spell-cell.on { background: #1b4332; color: #4ade80; }
+  .spell-cell.wand-on { background: #1b3a4b; color: #60a5fa; }
+  .spell-cell:hover { border-color: #e94560; }
+  .spell-actions { margin-top: 8px; display: flex; gap: 8px; }
+  .spell-actions button { padding: 4px 12px; font-size: 12px; }
+  .equip-row { display: flex; align-items: center; padding: 4px 0; border-bottom: 1px solid #1a1a2e; gap: 8px; }
+  .equip-row:last-child { border-bottom: none; }
+  .equip-name { flex: 1; font-size: 13px; color: #aaa; }
+  .equip-own { width: 50px; text-align: center; }
+  .equip-ench input { width: 60px; }
+  .equip-own input[type="checkbox"] { width: 16px; height: 16px; accent-color: #e94560; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Moraff's World — Save Editor</h1>
+  <p>Edit character stats, equipment, spells, and more. Save files are the bare numbered files (0–9) in the MW directory.</p>
+</div>
+
+<div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+  <h2>Drop a save file here</h2>
+  <p>Or click to browse. Files are named 0–9 with no extension (2,344 bytes each).</p>
+  <input type="file" id="fileInput" style="display:none">
+</div>
+
+<div class="toolbar" id="toolbar" style="display:none">
+  <button class="btn btn-secondary" onclick="document.getElementById('fileInput').click()">Open Another</button>
+  <button class="btn btn-success" id="saveBtn" onclick="saveFile()">Save File</button>
+  <button class="btn btn-secondary" onclick="showHexDiff()">View Hex Changes</button>
+  <span class="status" id="statusText">No changes</span>
+</div>
+
+<div class="main" id="editor">
+  <div class="grid">
+
+    <!-- Identity -->
+    <div class="card">
+      <div class="card-header"><span class="icon">👤</span> Character Identity</div>
+      <div class="card-body">
+        <div class="field">
+          <span class="field-label">Name <span class="offset">0x000</span></span>
+          <div class="field-value">
+            <input type="text" id="f_name" maxlength="39" oninput="markDirty()">
+          </div>
+        </div>
+        <div class="field">
+          <span class="field-label">Race <span class="offset">0x028</span></span>
+          <div class="field-value">
+            <select id="f_race" onchange="markDirty()">
+              <option value="0">Human</option><option value="1">Elf</option><option value="2">Dwarf</option>
+              <option value="3">Hobbit</option><option value="4">Gnome</option><option value="5">Ogre</option>
+              <option value="6">Sprite</option><option value="7">Imp</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <span class="field-label">Sex <span class="offset">0x029</span></span>
+          <div class="field-value">
+            <select id="f_sex" onchange="markDirty()">
+              <option value="0">Male</option><option value="1">Female</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <span class="field-label">Class <span class="offset">0x02A</span></span>
+          <div class="field-value">
+            <select id="f_class" onchange="markDirty()">
+              <option value="0">Fighter</option><option value="1">Worshiper</option><option value="2">Monk</option>
+              <option value="3">Wizard</option><option value="4">Priest</option><option value="5">Sage</option>
+              <option value="6">Mage</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <span class="field-label">Height (inches) <span class="offset">0x03D</span></span>
+          <div class="field-value"><input type="number" id="f_height" min="1" max="255" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Naked Weight <span class="offset">0x03F</span></span>
+          <div class="field-value"><input type="number" id="f_nakedwt" min="1" max="255" oninput="markDirty()"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Level & Health -->
+    <div class="card">
+      <div class="card-header"><span class="icon">⚔️</span> Level & Health</div>
+      <div class="card-body">
+        <div class="field">
+          <span class="field-label">Level <span class="offset">0x7A8</span></span>
+          <div class="field-value"><input type="number" id="f_level" min="1" max="65535" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Experience (XP) <span class="offset">0x858</span></span>
+          <div class="field-value"><input type="number" id="f_xp" min="0" step="1" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">HP Current <span class="offset">0x031</span></span>
+          <div class="field-value"><input type="number" id="f_hp_cur" min="0" max="65535" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">HP Max <span class="offset">0x033</span></span>
+          <div class="field-value"><input type="number" id="f_hp_max" min="0" max="65535" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">SP Current <span class="offset">0x035</span></span>
+          <div class="field-value"><input type="number" id="f_sp_cur" min="0" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">SP Maximum <span class="offset">0x039</span></span>
+          <div class="field-value"><input type="number" id="f_sp_max" min="0" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Age <span class="offset">0x7D6</span></span>
+          <div class="field-value"><input type="number" id="f_age" min="0" max="4294967295" oninput="markDirty()"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Attributes -->
+    <div class="card">
+      <div class="card-header"><span class="icon">📊</span> Attributes</div>
+      <div class="card-body">
+        <div class="field">
+          <span class="field-label">Strength <span class="offset">0x812</span></span>
+          <div class="field-value"><input type="number" id="f_str" min="0" max="65535" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Intelligence <span class="offset">0x814</span></span>
+          <div class="field-value"><input type="number" id="f_int" min="0" max="65535" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Wisdom <span class="offset">0x816</span></span>
+          <div class="field-value"><input type="number" id="f_wis" min="0" max="65535" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Constitution <span class="offset">0x818</span></span>
+          <div class="field-value"><input type="number" id="f_con" min="0" max="65535" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Agility <span class="offset">0x81A</span></span>
+          <div class="field-value"><input type="number" id="f_agi" min="0" max="65535" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Luck <span class="offset">0x81C</span></span>
+          <div class="field-value"><input type="number" id="f_luck" min="0" max="65535" oninput="markDirty()"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Position -->
+    <div class="card">
+      <div class="card-header"><span class="icon">🗺️</span> Position</div>
+      <div class="card-body">
+        <div class="field">
+          <span class="field-label">Floor Depth <span class="offset">0x7B0</span></span>
+          <div class="field-value"><input type="number" id="f_depth" min="0" max="65535" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">X Position <span class="offset">0x7AC</span></span>
+          <div class="field-value"><input type="number" id="f_x" min="0" max="65535" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Y Position <span class="offset">0x7AE</span></span>
+          <div class="field-value"><input type="number" id="f_y" min="0" max="65535" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Raise Contract <span class="offset">0x806</span></span>
+          <div class="field-value"><input type="number" id="f_raise" min="0" max="65535" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Diseased Turns <span class="offset">0x7CA</span></span>
+          <div class="field-value"><input type="number" id="f_diseased" min="0" max="65535" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Poisoned Turns <span class="offset">0x7CC</span></span>
+          <div class="field-value"><input type="number" id="f_poisoned" min="0" max="65535" oninput="markDirty()"></div>
+        </div>
+        <div class="warning">Raise Contract: 65535 = none, other = active.</div>
+      </div>
+    </div>
+
+    <!-- Money -->
+    <div class="card">
+      <div class="card-header"><span class="icon">💰</span> Money</div>
+      <div class="card-body">
+        <div class="field">
+          <span class="field-label">Jewels in Pocket <span class="offset">0x454</span></span>
+          <div class="field-value"><input type="number" id="f_pocket" min="0" max="4294967295" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Jewels in Bank <span class="offset">0x458</span></span>
+          <div class="field-value"><input type="number" id="f_bank" min="0" max="4294967295" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Copper Stones <span class="offset">0x45C</span></span>
+          <div class="field-value"><input type="number" id="f_copper" min="0" max="4294967295" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Silver Stones <span class="offset">0x460</span></span>
+          <div class="field-value"><input type="number" id="f_silver" min="0" max="4294967295" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Ivory Stones <span class="offset">0x464</span></span>
+          <div class="field-value"><input type="number" id="f_ivory" min="0" max="4294967295" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Gold Stones <span class="offset">0x468</span></span>
+          <div class="field-value"><input type="number" id="f_gold" min="0" max="4294967295" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Platinum Stones <span class="offset">0x46C</span></span>
+          <div class="field-value"><input type="number" id="f_platinum" min="0" max="4294967295" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Jewel Stones <span class="offset">0x470</span></span>
+          <div class="field-value"><input type="number" id="f_jewelstone" min="0" max="4294967295" oninput="markDirty()"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Items -->
+    <div class="card">
+      <div class="card-header"><span class="icon">🎒</span> Items & Pills</div>
+      <div class="card-body">
+        <div class="field">
+          <span class="field-label">Holy H Grenade <span class="offset">0x7C8</span></span>
+          <div class="field-value"><input type="number" id="f_grenade" min="0" max="255" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Stone of Telep <span class="offset">0x810</span></span>
+          <div class="field-value"><input type="number" id="f_telep" min="0" max="255" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Stone of See <span class="offset">0x7C9</span></span>
+          <div class="field-value"><input type="number" id="f_see" min="0" max="255" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Floor Slosher <span class="offset">0x7FE</span></span>
+          <div class="field-value"><input type="number" id="f_slosher" min="0" max="255" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Potion of Heal <span class="offset">0x80E</span></span>
+          <div class="field-value"><input type="number" id="f_potion" min="0" max="255" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Green Pill <span class="offset">0x15E</span></span>
+          <div class="field-value"><input type="number" id="f_pill_green" min="0" max="127" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Orange Pill <span class="offset">0x15D</span></span>
+          <div class="field-value"><input type="number" id="f_pill_orange" min="0" max="127" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Blue Pill <span class="offset">0x15F</span></span>
+          <div class="field-value"><input type="number" id="f_pill_blue" min="0" max="127" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Red Pill <span class="offset">0x160</span></span>
+          <div class="field-value"><input type="number" id="f_pill_red" min="0" max="127" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">White Pill <span class="offset">0x161</span></span>
+          <div class="field-value"><input type="number" id="f_pill_white" min="0" max="127" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Yellow Pill <span class="offset">0x162</span></span>
+          <div class="field-value"><input type="number" id="f_pill_yellow" min="0" max="127" oninput="markDirty()"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Worn Gear -->
+    <div class="card">
+      <div class="card-header"><span class="icon">🛡️</span> Worn Gear</div>
+      <div class="card-body">
+        <div class="field">
+          <span class="field-label">Ring of Regen <span class="offset">0x7C6</span></span>
+          <div class="field-value"><input type="number" id="f_regen" min="0" max="255" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Ring of Prot+ <span class="offset">0x7D1</span></span>
+          <div class="field-value"><input type="number" id="f_prot" min="0" max="255" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">AntiMagic Ring <span class="offset">0x7D2</span></span>
+          <div class="field-value"><input type="number" id="f_antimagic" min="0" max="255" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Body Armor Lv <span class="offset">0x7D0</span></span>
+          <div class="field-value"><input type="number" id="f_armorlv" min="0" max="255" oninput="markDirty()"></div>
+        </div>
+        <div class="field">
+          <span class="field-label">Gauntlet <span class="offset">0x846</span></span>
+          <div class="field-value"><input type="number" id="f_gauntlet" min="0" max="127" oninput="markDirty()"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Equipment -->
+    <div class="card">
+      <div class="card-header"><span class="icon">⚒️</span> Equipment</div>
+      <div class="card-body">
+        <div style="font-size:13px;font-weight:600;color:#e94560;margin-bottom:8px;">Weapons</div>
+        <div style="display:flex;gap:8px;font-size:11px;color:#888;padding-bottom:4px;border-bottom:1px solid #1a1a2e;">
+          <span style="flex:1">Name</span><span style="width:50px;text-align:center">Own</span><span style="width:70px;text-align:right">Enchant</span>
+        </div>
+        <div id="weaponRows"></div>
+        <div style="font-size:13px;font-weight:600;color:#e94560;margin:12px 0 8px;">Armor</div>
+        <div style="display:flex;gap:8px;font-size:11px;color:#888;padding-bottom:4px;border-bottom:1px solid #1a1a2e;">
+          <span style="flex:1">Name</span><span style="width:50px;text-align:center">Own</span><span style="width:70px;text-align:right">Enchant</span>
+        </div>
+        <div id="armorRows"></div>
+      </div>
+    </div>
+
+    <!-- Spell Effects -->
+    <div class="card">
+      <div class="card-header"><span class="icon">✨</span> Spell Effects</div>
+      <div class="card-body" id="effectFields"></div>
+    </div>
+
+    <!-- Spells/Scrolls/Wands/Papers Grid -->
+    <div class="card spell-grid-card">
+      <div class="card-header"><span class="icon">📜</span> Spells / Scrolls / Wands / Papers</div>
+      <div class="card-body">
+        <div class="spell-grid-tabs">
+          <div class="spell-grid-tab active" onclick="switchGridTab(0)">Spells</div>
+          <div class="spell-grid-tab" onclick="switchGridTab(1)">Scrolls</div>
+          <div class="spell-grid-tab" onclick="switchGridTab(2)">Wands</div>
+          <div class="spell-grid-tab" onclick="switchGridTab(3)">Papers</div>
+        </div>
+        <div id="gridContainer"></div>
+      </div>
+    </div>
+
+    <!-- Raw Hex Viewer -->
+    <div class="card" style="grid-column: 1 / -1;">
+      <div class="card-header"><span class="icon">🔧</span> Hex Diff (changes highlighted in red)</div>
+      <div class="card-body">
+        <div class="hex-view" id="hexView">Load a file to see hex data...</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const SAVE_SIZE = 2344;
+let originalBytes = null;
+let currentBytes = null;
+let fileName = '';
+
+const WEAPONS = ['Fist','Stick','Club','Mace','Knife','Shortsword','Long Sword','Great Sword'];
+const ARMORS = ['Skin','Leather','Chain','Scale','Plate','Field Plate','Titanium','Ogre'];
+const SPELL_TYPES = ['E (Permanent)','H (Preparation)','A (Wizard Battle)','P (Priest Battle)'];
+
+const SPELL_BASES  = [0x177, 0x1A4, 0x1D1, 0x1FE];
+const SCROLL_BASES = [0x22B, 0x258, 0x285, 0x2B2];
+const WAND_BASES   = [0x2DF, 0x30C, 0x339, 0x366];
+const PAPER_BASES  = [0x393, 0x3C0, 0x3ED, 0x41A];
+const GRID_SETS = [
+  { name: 'Spells',  bases: SPELL_BASES,  isWand: false },
+  { name: 'Scrolls', bases: SCROLL_BASES, isWand: false },
+  { name: 'Wands',   bases: WAND_BASES,   isWand: true },
+  { name: 'Papers',  bases: PAPER_BASES,  isWand: false },
+];
+
+const EQ_WEP_OWN  = 0x081;
+const EQ_WEP_ENCH = 0x08E;
+const EQ_ARM_OWN  = 0x0B0;
+const EQ_ARM_ENCH = 0x0B8;
+
+const EFFECTS = [
+  { name: 'Weapon Plus',    off: 0x7CE, sz: 1 },
+  { name: 'Armor Plus',     off: 0x7CF, sz: 1 },
+  { name: 'Feather',        off: 0x7D3, sz: 1 },
+  { name: 'Fast Move',      off: 0x7D4, sz: 1 },
+  { name: 'Invisibility',   off: 0x7D5, sz: 1 },
+  { name: 'Str Bonus',      off: 0x7DA, sz: 1 },
+  { name: 'Agi Bonus',      off: 0x7DB, sz: 1 },
+  { name: 'Super Strength', off: 0x7DC, sz: 1 },
+  { name: 'Super Agility',  off: 0x7DD, sz: 1 },
+  { name: 'Battle Str',     off: 0x7DE, sz: 2 },
+  { name: 'Battle Speed',   off: 0x7E0, sz: 2 },
+  { name: 'Slow Monster',   off: 0x7E2, sz: 2 },
+  { name: 'Power Weapon',   off: 0x7E4, sz: 1 },
+  { name: 'Pwr Wpn Turns',  off: 0x7E5, sz: 2 },
+  { name: 'Protect Level',  off: 0x7E7, sz: 1 },
+  { name: 'Protect Turns',  off: 0x7E8, sz: 2 },
+  { name: 'Resist Poison',  off: 0x7EA, sz: 2 },
+  { name: 'Resist Disease', off: 0x7EC, sz: 2 },
+  { name: 'Anti Cold',      off: 0x7EE, sz: 2 },
+  { name: 'Anti Fire',      off: 0x7F0, sz: 2 },
+  { name: 'Resist Drain',   off: 0x7F2, sz: 2 },
+  { name: 'Stop Monster',   off: 0x7F4, sz: 2 },
+  { name: 'Hold Monster',   off: 0x7F6, sz: 2 },
+];
+
+const FIELDS = {
+  name:        { off: 0x000, len: 40, type: 'string' },
+  race:        { off: 0x028, len: 1,  type: 'byte' },
+  sex:         { off: 0x029, len: 1,  type: 'byte' },
+  class_:      { off: 0x02A, len: 1,  type: 'byte' },
+  hp_cur:      { off: 0x031, len: 2,  type: 'u16le' },
+  hp_max:      { off: 0x033, len: 2,  type: 'u16le' },
+  sp_cur:      { off: 0x035, len: 4,  type: 'f32le' },
+  sp_max:      { off: 0x039, len: 4,  type: 'f32le' },
+  height:      { off: 0x03D, len: 1,  type: 'byte' },
+  nakedwt:     { off: 0x03F, len: 1,  type: 'byte' },
+  pocket:      { off: 0x454, len: 4,  type: 'u32le' },
+  bank:        { off: 0x458, len: 4,  type: 'u32le' },
+  copper:      { off: 0x45C, len: 4,  type: 'u32le' },
+  silver:      { off: 0x460, len: 4,  type: 'u32le' },
+  ivory:       { off: 0x464, len: 4,  type: 'u32le' },
+  gold:        { off: 0x468, len: 4,  type: 'u32le' },
+  platinum:    { off: 0x46C, len: 4,  type: 'u32le' },
+  jewelstone:  { off: 0x470, len: 4,  type: 'u32le' },
+  level:       { off: 0x7A8, len: 2,  type: 'u16le' },
+  depth:       { off: 0x7B0, len: 2,  type: 'u16le' },
+  x:           { off: 0x7AC, len: 2,  type: 'u16le' },
+  y:           { off: 0x7AE, len: 2,  type: 'u16le' },
+  str:         { off: 0x812, len: 2,  type: 'u16le' },
+  int_:        { off: 0x814, len: 2,  type: 'u16le' },
+  wis:         { off: 0x816, len: 2,  type: 'u16le' },
+  con:         { off: 0x818, len: 2,  type: 'u16le' },
+  agi:         { off: 0x81A, len: 2,  type: 'u16le' },
+  luck:        { off: 0x81C, len: 2,  type: 'u16le' },
+  xp:          { off: 0x858, len: 8,  type: 'f64le' },
+  raise:       { off: 0x806, len: 2,  type: 'u16le' },
+  age:         { off: 0x7D6, len: 4,  type: 'u32le' },
+  grenade:     { off: 0x7C8, len: 1,  type: 'byte' },
+  telep:       { off: 0x810, len: 1,  type: 'byte' },
+  see:         { off: 0x7C9, len: 1,  type: 'byte' },
+  slosher:     { off: 0x7FE, len: 1,  type: 'byte' },
+  potion:      { off: 0x80E, len: 1,  type: 'byte' },
+  pill_green:  { off: 0x15E, len: 1,  type: 'byte' },
+  pill_orange: { off: 0x15D, len: 1,  type: 'byte' },
+  pill_blue:   { off: 0x15F, len: 1,  type: 'byte' },
+  pill_red:    { off: 0x160, len: 1,  type: 'byte' },
+  pill_white:  { off: 0x161, len: 1,  type: 'byte' },
+  pill_yellow: { off: 0x162, len: 1,  type: 'byte' },
+  regen:       { off: 0x7C6, len: 1,  type: 'byte' },
+  prot:        { off: 0x7D1, len: 1,  type: 'byte' },
+  antimagic:   { off: 0x7D2, len: 1,  type: 'byte' },
+  armorlv:     { off: 0x7D0, len: 1,  type: 'byte' },
+  gauntlet:    { off: 0x846, len: 1,  type: 'byte' },
+  diseased:    { off: 0x7CA, len: 2,  type: 'u16le' },
+  poisoned:    { off: 0x7CC, len: 2,  type: 'u16le' },
+};
+
+function readVal(bytes, spec) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset);
+  switch (spec.type) {
+    case 'string': {
+      let s = '';
+      for (let i = spec.off; i < spec.off + spec.len; i++) {
+        if (bytes[i] === 0) break;
+        s += String.fromCharCode(bytes[i]);
+      }
+      return s;
+    }
+    case 'byte':  return bytes[spec.off];
+    case 'u16le': return bytes[spec.off] | (bytes[spec.off+1] << 8);
+    case 'u32le': return dv.getUint32(spec.off, true);
+    case 'f32le': return Math.round(dv.getFloat32(spec.off, true));
+    case 'f64le': return dv.getFloat64(spec.off, true);
+  }
+}
+
+function writeVal(bytes, spec, val) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset);
+  switch (spec.type) {
+    case 'string': {
+      for (let i = 0; i < spec.len; i++) bytes[spec.off + i] = 0;
+      const s = String(val).substring(0, spec.len - 1);
+      for (let i = 0; i < s.length; i++) bytes[spec.off + i] = s.charCodeAt(i);
+      break;
+    }
+    case 'byte':  bytes[spec.off] = val & 0xFF; break;
+    case 'u16le': if(val>32767)val=32767; bytes[spec.off] = val & 0xFF; bytes[spec.off+1] = (val >> 8) & 0xFF; break;
+    case 'u32le': dv.setUint32(spec.off, val >>> 0, true); break;
+    case 'f32le': dv.setFloat32(spec.off, val, true); break;
+    case 'f64le': dv.setFloat64(spec.off, val, true); break;
+  }
+}
+
+let activeGridTab = 0;
+
+function buildEquipRows() {
+  const wDiv = document.getElementById('weaponRows');
+  const aDiv = document.getElementById('armorRows');
+  wDiv.innerHTML = '';
+  aDiv.innerHTML = '';
+  for (let i = 0; i < 8; i++) {
+    wDiv.innerHTML += `<div class="equip-row">
+      <span class="equip-name">${WEAPONS[i]}</span>
+      <span class="equip-own"><input type="checkbox" id="wep_own_${i}" onchange="markDirty()"></span>
+      <span class="equip-ench"><input type="number" id="wep_ench_${i}" min="0" max="127" style="width:60px" oninput="markDirty()"></span>
+    </div>`;
+    aDiv.innerHTML += `<div class="equip-row">
+      <span class="equip-name">${ARMORS[i]}</span>
+      <span class="equip-own"><input type="checkbox" id="arm_own_${i}" onchange="markDirty()"></span>
+      <span class="equip-ench"><input type="number" id="arm_ench_${i}" min="0" max="127" style="width:60px" oninput="markDirty()"></span>
+    </div>`;
+  }
+}
+
+function buildEffectFields() {
+  const div = document.getElementById('effectFields');
+  div.innerHTML = '';
+  EFFECTS.forEach((eff, i) => {
+    const max = eff.sz === 1 ? 255 : 65535;
+    div.innerHTML += `<div class="field">
+      <span class="field-label">${eff.name} <span class="offset">0x${eff.off.toString(16).toUpperCase()}</span></span>
+      <div class="field-value"><input type="number" id="eff_${i}" min="0" max="${max}" oninput="markDirty()"></div>
+    </div>`;
+  });
+}
+
+function buildGrids() {
+  const container = document.getElementById('gridContainer');
+  container.innerHTML = '';
+  GRID_SETS.forEach((gs, gi) => {
+    let html = `<div class="spell-grid-container${gi===0?' active':''}" id="grid_${gi}">`;
+    for (let t = 0; t < 4; t++) {
+      html += `<div class="spell-type-row"><div class="spell-type-label">${SPELL_TYPES[t]}</div><div class="spell-row">`;
+      for (let s = 0; s < 30; s++) {
+        const off = gs.bases[t] + s;
+        html += `<div class="spell-cell off" id="gc_${gi}_${t}_${s}" data-grid="${gi}" data-type="${t}" data-slot="${s}" data-off="${off}" onclick="toggleGridCell(this)">${s+1}</div>`;
+      }
+      html += `</div>`;
+      html += `<div class="spell-actions">
+        <button class="btn btn-secondary" onclick="setGridRow(${gi},${t},1)">All On</button>
+        <button class="btn btn-secondary" onclick="setGridRow(${gi},${t},0)">All Off</button>
+      </div></div>`;
+    }
+    html += '</div>';
+    container.innerHTML += html;
+  });
+}
+
+function switchGridTab(idx) {
+  activeGridTab = idx;
+  document.querySelectorAll('.spell-grid-tab').forEach((t,i) => t.classList.toggle('active', i===idx));
+  document.querySelectorAll('.spell-grid-container').forEach((c,i) => c.classList.toggle('active', i===idx));
+}
+
+function toggleGridCell(el) {
+  if (!currentBytes) return;
+  const off = parseInt(el.dataset.off);
+  const gi = parseInt(el.dataset.grid);
+  const isWand = GRID_SETS[gi].isWand;
+  if (isWand) {
+    let v = currentBytes[off] + 1;
+    if (v >= 10) v = 0;
+    currentBytes[off] = v;
+  } else {
+    currentBytes[off] = currentBytes[off] ? 0 : 1;
+  }
+  refreshGridCells();
+  markDirtyNoApply();
+}
+
+function setGridRow(gi, type, val) {
+  if (!currentBytes) return;
+  const gs = GRID_SETS[gi];
+  for (let s = 0; s < 30; s++) {
+    const off = gs.bases[type] + s;
+    if (gs.isWand) {
+      currentBytes[off] = val ? 9 : 0;
+    } else {
+      currentBytes[off] = val;
+    }
+  }
+  refreshGridCells();
+  markDirtyNoApply();
+}
+
+function refreshGridCells() {
+  if (!currentBytes) return;
+  GRID_SETS.forEach((gs, gi) => {
+    for (let t = 0; t < 4; t++) {
+      for (let s = 0; s < 30; s++) {
+        const off = gs.bases[t] + s;
+        const el = document.getElementById(`gc_${gi}_${t}_${s}`);
+        if (!el) continue;
+        const v = currentBytes[off];
+        if (gs.isWand) {
+          el.className = 'spell-cell ' + (v > 0 ? 'wand-on' : 'off');
+          el.textContent = v > 0 ? (v <= 9 ? v : '+') : (s+1);
+        } else {
+          el.className = 'spell-cell ' + (v ? 'on' : 'off');
+          el.textContent = s + 1;
+        }
+      }
+    }
+  });
+}
+
+function loadFile(file) {
+  fileName = file.name;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const arr = new Uint8Array(e.target.result);
+    if (arr.length !== SAVE_SIZE) {
+      alert(`Expected ${SAVE_SIZE} bytes, got ${arr.length}. This may not be a Moraff's World save file.`);
+      if (arr.length < 0x860) return;
+    }
+    originalBytes = new Uint8Array(arr);
+    currentBytes = new Uint8Array(arr);
+
+    // Simple fields
+    const simpleFields = ['name','race','sex','class_','height','nakedwt','level','hp_cur','hp_max',
+      'sp_cur','sp_max','age','str','int_','wis','con','agi','luck',
+      'pocket','bank','copper','silver','ivory','gold','platinum','jewelstone',
+      'depth','x','y','raise','diseased','poisoned',
+      'grenade','telep','see','slosher','potion',
+      'pill_green','pill_orange','pill_blue','pill_red','pill_white','pill_yellow',
+      'regen','prot','antimagic','armorlv','gauntlet'];
+    simpleFields.forEach(key => {
+      const el = document.getElementById('f_' + key.replace('_',''));
+      if (!el) {
+        const el2 = document.getElementById('f_' + key);
+        if (el2) {
+          let v = readVal(currentBytes, FIELDS[key]);
+          if (key === 'xp') v = Math.floor(v);
+          el2.value = v;
+        }
+        return;
+      }
+      let v = readVal(currentBytes, FIELDS[key]);
+      if (key === 'xp') v = Math.floor(v);
+      el.value = v;
+    });
+    // Fix IDs that don't match the pattern
+    document.getElementById('f_xp').value = Math.floor(readVal(currentBytes, FIELDS.xp));
+
+    // Equipment
+    for (let i = 0; i < 8; i++) {
+      document.getElementById('wep_own_'+i).checked = !!currentBytes[EQ_WEP_OWN + i];
+      document.getElementById('wep_ench_'+i).value = currentBytes[EQ_WEP_ENCH + i];
+      document.getElementById('arm_own_'+i).checked = !!currentBytes[EQ_ARM_OWN + i];
+      document.getElementById('arm_ench_'+i).value = currentBytes[EQ_ARM_ENCH + i];
+    }
+
+    // Effects
+    EFFECTS.forEach((eff, i) => {
+      const v = eff.sz === 1 ? currentBytes[eff.off] : (currentBytes[eff.off] | (currentBytes[eff.off+1] << 8));
+      document.getElementById('eff_'+i).value = v;
+    });
+
+    // Grids
+    refreshGridCells();
+
+    document.getElementById('dropZone').style.display = 'none';
+    document.getElementById('toolbar').style.display = 'flex';
+    document.getElementById('editor').classList.add('visible');
+    document.getElementById('statusText').textContent = `Loaded: ${fileName} (${arr.length} bytes)`;
+    renderHex();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function applyEdits() {
+  if (!originalBytes) return;
+  // Start from original, apply all fields
+  currentBytes = new Uint8Array(originalBytes);
+
+  // Simple fields
+  const fieldMap = {
+    'f_name':'name', 'f_race':'race', 'f_sex':'sex', 'f_class':'class_',
+    'f_height':'height', 'f_nakedwt':'nakedwt', 'f_level':'level', 'f_xp':'xp',
+    'f_hp_cur':'hp_cur', 'f_hp_max':'hp_max', 'f_sp_cur':'sp_cur', 'f_sp_max':'sp_max',
+    'f_age':'age', 'f_str':'str', 'f_int':'int_', 'f_wis':'wis', 'f_con':'con',
+    'f_agi':'agi', 'f_luck':'luck',
+    'f_pocket':'pocket', 'f_bank':'bank', 'f_copper':'copper', 'f_silver':'silver',
+    'f_ivory':'ivory', 'f_gold':'gold', 'f_platinum':'platinum', 'f_jewelstone':'jewelstone',
+    'f_depth':'depth', 'f_x':'x', 'f_y':'y', 'f_raise':'raise',
+    'f_diseased':'diseased', 'f_poisoned':'poisoned',
+    'f_grenade':'grenade', 'f_telep':'telep', 'f_see':'see', 'f_slosher':'slosher', 'f_potion':'potion',
+    'f_pill_green':'pill_green', 'f_pill_orange':'pill_orange', 'f_pill_blue':'pill_blue',
+    'f_pill_red':'pill_red', 'f_pill_white':'pill_white', 'f_pill_yellow':'pill_yellow',
+    'f_regen':'regen', 'f_prot':'prot', 'f_antimagic':'antimagic', 'f_armorlv':'armorlv', 'f_gauntlet':'gauntlet'
+  };
+  for (const [elId, key] of Object.entries(fieldMap)) {
+    const el = document.getElementById(elId);
+    if (!el) continue;
+    const spec = FIELDS[key];
+    let val = spec.type === 'string' ? el.value : (parseFloat(el.value) || 0);
+    writeVal(currentBytes, spec, val);
+  }
+
+  // Equipment
+  for (let i = 0; i < 8; i++) {
+    currentBytes[EQ_WEP_OWN + i] = document.getElementById('wep_own_'+i).checked ? 1 : 0;
+    currentBytes[EQ_WEP_ENCH + i] = parseInt(document.getElementById('wep_ench_'+i).value) || 0;
+    currentBytes[EQ_ARM_OWN + i] = document.getElementById('arm_own_'+i).checked ? 1 : 0;
+    currentBytes[EQ_ARM_ENCH + i] = parseInt(document.getElementById('arm_ench_'+i).value) || 0;
+  }
+
+  // Effects
+  EFFECTS.forEach((eff, i) => {
+    const v = parseInt(document.getElementById('eff_'+i).value) || 0;
+    if (eff.sz === 1) {
+      currentBytes[eff.off] = v & 0xFF;
+    } else {
+      currentBytes[eff.off] = v & 0xFF;
+      currentBytes[eff.off+1] = (v >> 8) & 0xFF;
+    }
+  });
+
+  // Grids are written directly to currentBytes, so we need to preserve them
+  // But we just reset from originalBytes... need to re-apply grid state
+  // Actually grids modify currentBytes directly, so after reset they're lost.
+  // We need to save grid state before reset and reapply.
+}
+
+// Grid cells write directly to currentBytes. When applyEdits resets from original,
+// we lose grid changes. Fix: track grid changes separately.
+let gridOverrides = {};
+
+function toggleGridCell_v2(el) {
+  if (!currentBytes) return;
+  const off = parseInt(el.dataset.off);
+  const gi = parseInt(el.dataset.grid);
+  const isWand = GRID_SETS[gi].isWand;
+  if (isWand) {
+    let v = currentBytes[off] + 1;
+    if (v >= 10) v = 0;
+    currentBytes[off] = v;
+  } else {
+    currentBytes[off] = currentBytes[off] ? 0 : 1;
+  }
+  gridOverrides[off] = currentBytes[off];
+  refreshGridCells();
+  markDirtyNoApply();
+}
+
+// Replace the onclick handler
+function toggleGridCell(el) { toggleGridCell_v2(el); }
+
+function setGridRow(gi, type, val) {
+  if (!currentBytes) return;
+  const gs = GRID_SETS[gi];
+  for (let s = 0; s < 30; s++) {
+    const off = gs.bases[type] + s;
+    const v = gs.isWand ? (val ? 9 : 0) : val;
+    currentBytes[off] = v;
+    gridOverrides[off] = v;
+  }
+  refreshGridCells();
+  markDirtyNoApply();
+}
+
+function applyAllEdits() {
+  applyEdits();
+  // Re-apply grid overrides
+  for (const [off, val] of Object.entries(gridOverrides)) {
+    currentBytes[parseInt(off)] = val;
+  }
+}
+
+function markDirty() {
+  applyAllEdits();
+  updateStatus();
+  renderHex();
+}
+
+function markDirtyNoApply() {
+  updateStatus();
+  renderHex();
+}
+
+function updateStatus() {
+  if (!currentBytes || !originalBytes) return;
+  let changes = 0;
+  for (let i = 0; i < currentBytes.length; i++) {
+    if (currentBytes[i] !== originalBytes[i]) changes++;
+  }
+  document.getElementById('statusText').textContent = changes > 0
+    ? `${changes} byte(s) changed`
+    : 'No changes';
+}
+
+function renderHex() {
+  if (!currentBytes) return;
+  const el = document.getElementById('hexView');
+  let html = '';
+  for (let row = 0; row < currentBytes.length; row += 16) {
+    let hexPart = '';
+    let asciiPart = '';
+    for (let col = 0; col < 16 && row + col < currentBytes.length; col++) {
+      const i = row + col;
+      const b = currentBytes[i];
+      const changed = originalBytes && b !== originalBytes[i];
+      const cls = changed ? ' class="changed"' : '';
+      hexPart += `<span${cls}>${b.toString(16).padStart(2,'0')}</span> `;
+      const ch = (b >= 32 && b < 127) ? String.fromCharCode(b) : '.';
+      asciiPart += `<span${cls}>${ch.replace(/</g,'&lt;')}</span>`;
+      if (col === 7) hexPart += ' ';
+    }
+    html += `<span class="offset-col">${row.toString(16).padStart(7,'0')}:</span> ${hexPart.padEnd(52)} <span class="ascii">${asciiPart}</span>\n`;
+  }
+  el.innerHTML = html;
+}
+
+function showHexDiff() {
+  const hexCard = document.querySelector('.hex-view');
+  hexCard.scrollIntoView({ behavior: 'smooth' });
+}
+
+function saveFile() {
+  applyAllEdits();
+  const blob = new Blob([currentBytes], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName || '0';
+  a.click();
+  URL.revokeObjectURL(url);
+  document.getElementById('statusText').textContent = `Saved as: ${a.download}`;
+}
+
+// Drag and drop
+const dz = document.getElementById('dropZone');
+const fi = document.getElementById('fileInput');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+dz.addEventListener('drop', e => {
+  e.preventDefault();
+  dz.classList.remove('dragover');
+  if (e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]);
+});
+fi.addEventListener('change', () => { if (fi.files.length) loadFile(fi.files[0]); });
+
+// Build dynamic UI
+buildEquipRows();
+buildEffectFields();
+buildGrids();
+</script>
+</body>
+</html>
